@@ -1,6 +1,6 @@
 const Order = require('../models/order');
 const MenuItem = require('../models/menuItem');
-const Inventory = require('../models/inventory'); // We need this to update stock
+const Inventory = require('../models/inventoryModel'); // We need this to update stock
 
 // GET /api/orders - Get all orders
 exports.getAllOrders = async (req, res) => {

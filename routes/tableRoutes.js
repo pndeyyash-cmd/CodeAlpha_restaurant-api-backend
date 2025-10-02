@@ -2,14 +2,12 @@ const express = require('express');
 const router = express.Router();
 const tableController = require('../controllers/tableController');
 
-// Routes for getting all tables and creating a new one
+// This route handles GET requests to fetch all tables and POST requests to create a new table.
 router.route('/')
   .get(tableController.getAllTables)
   .post(tableController.createTable);
 
-// Routes for updating and deleting a single table by its ID
-router.route('/:id')
-  .put(tableController.updateTable)
-  .delete(tableController.deleteTable);
+// This route handles DELETE requests to remove a specific table by its ID.
+router.route('/:id').delete(tableController.deleteTable);
 
 module.exports = router;

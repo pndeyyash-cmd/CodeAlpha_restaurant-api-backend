@@ -1,2 +1,11 @@
-node_modules
+# Ignore the frontend project folder
+Neha's-restaurant-frontend/
+
+# Ignore node modules folder
+node_modules/
+
+# Ignore environment variables file
 .env
+
+# Ignore yarn lock file
+yarn.lock

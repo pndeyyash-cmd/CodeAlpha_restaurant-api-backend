@@ -1,55 +1,72 @@
-const Reservation = require('../models/reservation');
-const Table = require('../models/table'); // We need the Table model to check capacity
+const Reservation = require('../models/reservationModel');
+const Table = require('../models/tableModel');
 
-// GET /api/reservations - Get all reservations
+// Get all reservations
 exports.getAllReservations = async (req, res) => {
   try {
     const reservations = await Reservation.find({}).populate('tableId');
     res.status(200).json(reservations);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching reservations", error: error.message });
+    res.status(500).json({ message: 'Error fetching reservations', error: error.message });
   }
 };
 
-// POST /api/reservations - Create a new reservation
+// Create a new reservation with time-based conflict checking
 exports.createReservation = async (req, res) => {
   try {
-    const { tableId, reservationTime, numberOfGuests } = req.body;
+    const { customerName, customerPhone, reservationTime, tableId, partySize, durationHours } = req.body;
 
-    // Find the requested table to check its capacity
-    const table = await Table.findById(tableId);
-    if (!table) {
-      return res.status(404).json({ message: "Table not found" });
+    if (!reservationTime || !tableId || !durationHours) {
+      return res.status(400).json({ message: 'Missing required reservation details.' });
     }
-    if (table.capacity < numberOfGuests) {
-      return res.status(400).json({ message: `Table capacity is ${table.capacity}, but ${numberOfGuests} guests were requested.` });
-    }
+    
+    const startTime = new Date(reservationTime);
+    const durationInMilliseconds = parseFloat(durationHours) * 60 * 60 * 1000;
+    const endTime = new Date(startTime.getTime() + durationInMilliseconds);
 
-    // --- Business Logic: Check for conflicting reservations ---
-    // Define a time window for the check (e.g., 2 hours)
-    const requestedTime = new Date(reservationTime);
-    const twoHoursBefore = new Date(requestedTime.getTime() - 2 * 60 * 60 * 1000);
-    const twoHoursAfter = new Date(requestedTime.getTime() + 2 * 60 * 60 * 1000);
-
-    const conflictingReservation = await Reservation.findOne({
+    // Check for booking conflicts for the selected table
+    const conflictingReservations = await Reservation.find({
       tableId: tableId,
-      status: 'confirmed',
-      reservationTime: {
-        $gte: twoHoursBefore, // Greater than or equal to 2 hours before
-        $lt: twoHoursAfter    // Less than 2 hours after
-      }
+      // Find any reservation that overlaps with the requested time window
+      $or: [
+        { reservationTime: { $lt: endTime }, endTime: { $gt: startTime } }
+      ]
     });
 
-    if (conflictingReservation) {
-      return res.status(400).json({ message: "Table is already booked around this time. Please choose another time." });
+    if (conflictingReservations.length > 0) {
+      // If a conflict is found, send a specific error message
+      return res.status(409).json({ message: 'This table is already booked for the selected time. Please choose a different time or table.' });
     }
 
     // If no conflicts, create and save the new reservation
-    const reservation = new Reservation(req.body);
-    await reservation.save();
-    res.status(201).json(reservation);
+    const newReservation = new Reservation({
+      customerName,
+      customerPhone,
+      reservationTime: startTime,
+      endTime, // Save the calculated end time
+      tableId,
+      partySize
+    });
+
+    await newReservation.save();
+    
+    res.status(201).json(newReservation);
 
   } catch (error) {
-    res.status(400).json({ message: "Error creating reservation", error: error.message });
+    res.status(400).json({ message: 'Error creating reservation', error: error.message });
   }
 };
+
+// Delete/Cancel a reservation
+exports.deleteReservation = async (req, res) => {
+    try {
+        const reservation = await Reservation.findByIdAndDelete(req.params.id);
+        if (!reservation) {
+            return res.status(404).json({ message: 'Reservation not found' });
+        }
+        res.status(200).json({ message: 'Reservation cancelled successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error cancelling reservation', error: error.message });
+    }
+};
+
